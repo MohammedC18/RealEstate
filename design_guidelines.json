@@ -1,0 +1,104 @@
+{
+  "theme": "Dark/Light Mixed",
+  "archetype": "5 (Luxury)",
+  "domain": "Real Estate",
+  "instructions_to_main_agent": [
+    "This is a frontend-first luxury project. Prioritize visual polish, layout asymmetry, and motion over rapid backend integration.",
+    "Use 'Cormorant Garamond' for Headings and 'Manrope' for Body text. Use Google Fonts.",
+    "Install 'framer-motion' and '@studio-freight/lenis' for smooth scrolling and animations.",
+    "Use Lucide React icons with a stroke width of 1 or 1.5 for a delicate, premium look.",
+    "Follow the TETRIS grid mode for featured property layouts. Do not use equal square grids. Mix 3+ shapes.",
+    "Use Glassmorphism (bg-black/60 backdrop-blur-xl) for the sticky nav and overlay cards over images.",
+    "Hero MUST use the provided video background with max black/40 overlay. Do not blanket overlay the image completely.",
+    "Never use pure black or gray, use tinting. Primary gold accent is #C8A96A.",
+    "Ensure all interactive elements have data-testid attributes.",
+    "Build the admin dashboard as a gated route with Shadcn components, but restyle them to fit the luxury theme."
+  ],
+  "colors": {
+    "background_dark": "#0A0A0A",
+    "background_light": "#FAFAFA",
+    "accent_gold": "#C8A96A",
+    "accent_gold_hover": "#DCC28A",
+    "text_primary_light": "#FAFAFA",
+    "text_secondary_light": "#A3A3A3",
+    "text_primary_dark": "#0A0A0A",
+    "text_secondary_dark": "#525252",
+    "border_dark": "rgba(255,255,255,0.1)",
+    "border_light": "rgba(0,0,0,0.1)",
+    "glass_dark": "rgba(10,10,10,0.6)",
+    "glass_light": "rgba(250,250,250,0.7)"
+  },
+  "typography": {
+    "heading_font": "'Cormorant Garamond', serif",
+    "body_font": "'Manrope', sans-serif",
+    "scales": {
+      "h1": "text-5xl sm:text-6xl md:text-7xl font-light tracking-tighter leading-none",
+      "h2": "text-3xl sm:text-4xl lg:text-5xl font-light tracking-tight leading-tight",
+      "h3": "text-2xl sm:text-3xl font-normal tracking-tight",
+      "body": "text-base sm:text-lg leading-relaxed font-light",
+      "small_label": "text-xs tracking-[0.2em] uppercase text-[#C8A96A]"
+    }
+  },
+  "spacing_and_layout": {
+    "section_padding": "py-24 md:py-32",
+    "container": "max-w-7xl mx-auto px-6 md:px-12",
+    "grid_tetris": "grid grid-cols-1 md:grid-cols-12 gap-8 md:gap-12",
+    "glass_panel": "backdrop-blur-xl border border-white/10 bg-black/40 shadow-[0_8px_32px_rgba(0,0,0,0.12)]"
+  },
+  "motion_and_interactions": {
+    "hover_button": "transition-all duration-300 hover:bg-[#C8A96A] hover:text-[#0A0A0A]",
+    "hover_card": "transition-all duration-500 hover:-translate-y-2 hover:shadow-2xl",
+    "page_transition": "framer-motion fade-in and slide-up",
+    "scroll_reveal": "staggered fade-in via framer-motion whileInView"
+  },
+  "media": {
+    "hero_video": "https://videos.pexels.com/video-files/5182061/5182061-hd_1920_1080_30fps.mp4",
+    "images": {
+      "hero_fallback": [
+        "https://images.pexels.com/photos/5414582/pexels-photo-5414582.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+      ],
+      "properties": [
+        "https://images.pexels.com/photos/8082227/pexels-photo-8082227.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "https://images.pexels.com/photos/8135492/pexels-photo-8135492.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "https://images.pexels.com/photos/16573669/pexels-photo-16573669.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "https://images.pexels.com/photos/29334668/pexels-photo-29334668.png?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+      ],
+      "locations": [
+        "https://images.unsplash.com/photo-1562979314-bee7453e911c",
+        "https://images.unsplash.com/photo-1709257260039-5cc911bbd625",
+        "https://images.pexels.com/photos/34016939/pexels-photo-34016939.jpeg",
+        "https://images.unsplash.com/photo-1580785692949-7b5b7fd83d25"
+      ],
+      "interiors": [
+        "https://images.pexels.com/photos/29012720/pexels-photo-29012720.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "https://images.pexels.com/photos/7377669/pexels-photo-7377669.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+      ],
+      "avatars": [
+        "https://images.pexels.com/photos/37148308/pexels-photo-37148308.jpeg",
+        "https://images.pexels.com/photos/15780889/pexels-photo-15780889.jpeg",
+        "https://images.unsplash.com/photo-1560250097-0b93528c311a",
+        "https://images.unsplash.com/photo-1494790108377-be9c29b29330"
+      ]
+    }
+  },
+  "sections_guidance": {
+    "nav": "Sticky with transparent-to-solid glass transition. z-50. Minimalist layout.",
+    "hero": "Cinematic fullscreen with video background. Use fallback image if video fails. H1 centered or left aligned with gold accents.",
+    "featured_properties": "Asymmetric Bento Grid (Tetris Mode) displaying luxury apartments and villas. High-quality images with hover-to-reveal details.",
+    "mumbai_locations": "Grid or horizontal scroll showcasing Bandra, Juhu, Worli, BKC, etc. Editorial style text overlay.",
+    "why_choose_us": "Dark section with large gold numbers (animated counters for stats). High contrast typography.",
+    "buying_process": "Vertical timeline with a 'Tracing Beam' glowing line connecting steps.",
+    "testimonials": "Carousel using Swiper or Framer Motion. Focus on avatar, serif quotes, luxury trust building.",
+    "properties_listing": "Advanced filters (Location, Type, Budget, BHK) built with Shadcn. Grid layout for properties.",
+    "property_details": "Lightbox gallery, amenities list, location highlights, and a sticky inquiry sidebar (glassmorphic).",
+    "admin_dashboard": "Gated by mock login. Clean, technical Swiss layout (Archetype 4 style but adapted to luxury color scheme). Use Shadcn heavily."
+  },
+  "components_and_tech": {
+    "routing": "react-router-dom",
+    "styling": "Tailwind CSS + HTML for marketing. Shadcn/UI for forms and admin.",
+    "motion": "framer-motion, @studio-freight/lenis",
+    "icons": "lucide-react",
+    "forms": "Shadcn UI Input/Select heavily customized for luxury theme."
+  },
+  "testing": "All interactive elements must use data-testid (e.g. data-testid='hero-cta-button', data-testid='property-filter-bhk', data-testid='admin-login-submit')."
+}
