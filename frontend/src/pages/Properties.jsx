@@ -9,6 +9,7 @@ import { SlidersHorizontal, X, Search } from "lucide-react";
 import { listProperties } from "../lib/api";
 import PropertyCard from "../components/PropertyCard";
 import { PropertySkeleton, EmptyState } from "../components/EnhancedUI";
+import SEOHead from "../lib/seo";
 
 const LOCATIONS = ["Bandra West", "Juhu", "Worli", "BKC", "Powai", "South Mumbai"];
 const TYPES = [{ v: "apartment", l: "Apartments" }, { v: "villa", l: "Villas" }, { v: "penthouse", l: "Penthouses" }];
@@ -62,7 +63,8 @@ export default function Properties() {
   const activeCount = Object.values(filters).filter(Boolean).length;
 
   return (
-    <div className="pt-24 md:pt-28 bg-[#FAFAFA]">
+    <div className="pt-24 md:pt-28 bg-[#FAFAFA] dark:bg-[#0A0A0A]">
+      <SEOHead title="Portfolio — Luxury Residences in Mumbai · Aayat Real Estate" description="Browse Aayat's curated portfolio of luxury apartments, penthouses and villas across Mumbai." />
       {/* Header */}
       <section className="bg-[#0A0A0A] text-white py-16 md:py-24 lg:py-28">
         <div className="max-w-[1400px] mx-auto px-6 md:px-10">
@@ -77,26 +79,28 @@ export default function Properties() {
       </section>
 
       {/* Filters */}
-      <section className="sticky top-20 z-30 bg-[#FAFAFA]/95 backdrop-blur-md border-b border-black/5">
-        <div className="max-w-[1400px] mx-auto px-6 md:px-10 py-4 space-y-3">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative flex-1 min-w-[200px] max-w-md">
-              <Search size={14} strokeWidth={1.5} className="absolute left-3 top-1/2 -translate-y-1/2 text-black/40" />
+      <section className="sticky top-20 z-30 bg-[#FAFAFA]/95 dark:bg-[#0A0A0A]/95 backdrop-blur-md border-b border-black/5 dark:border-white/10">
+        <div className="max-w-[1400px] mx-auto px-6 md:px-10 py-4">
+          {/* Row 1: search + price (own row, full width on mobile, half on desktop) */}
+          <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-6 mb-3">
+            <div className="relative flex-1">
+              <Search size={14} strokeWidth={1.5} className="absolute left-3 top-1/2 -translate-y-1/2 text-black/40 dark:text-white/40" />
               <input
                 data-testid="filter-search"
                 value={q} onChange={(e) => setQ(e.target.value)}
                 placeholder="Search residences, locations…"
-                className="w-full pl-9 pr-3 h-9 text-sm bg-transparent border border-black/15 focus:border-[#C8A96A] focus:outline-none"
+                className="w-full pl-9 pr-3 h-10 text-sm bg-transparent border border-black/15 dark:border-white/15 focus:border-[#C8A96A] focus:outline-none text-charcoal dark:text-white placeholder:text-black/40 dark:placeholder:text-white/40"
               />
             </div>
-            <label className="flex items-center gap-3 text-xs tracking-widest uppercase text-black/60">
-              Max ₹{maxPrice} Cr
+            <label className="flex items-center gap-3 text-xs tracking-widest uppercase text-black/60 dark:text-white/60 shrink-0">
+              <span className="whitespace-nowrap">Max ₹{maxPrice} Cr</span>
               <input type="range" min="5" max="500" step="5" value={maxPrice} onChange={(e) => setMaxPrice(Number(e.target.value))}
-                data-testid="filter-price" className="w-40 accent-[#C8A96A]" />
+                data-testid="filter-price" className="w-32 md:w-40 accent-[#C8A96A]" />
             </label>
           </div>
-          <div className="flex flex-wrap items-center gap-2 md:gap-3">
-            <SlidersHorizontal size={16} strokeWidth={1.5} className="text-black/50 hidden md:block" />
+          {/* Row 2: filter chips */}
+          <div className="flex flex-wrap items-center gap-2 md:gap-3 pt-3 border-t border-black/5 dark:border-white/5">
+            <SlidersHorizontal size={16} strokeWidth={1.5} className="text-black/50 dark:text-white/50 hidden md:block" />
             <FilterSelect testid="filter-location" label="Location" value={filters.location} onChange={(v) => setFilter("location", v)} options={LOCATIONS.map(l => ({ v: l, l }))} />
             <FilterSelect testid="filter-type" label="Type" value={filters.type} onChange={(v) => setFilter("type", v)} options={TYPES} />
             <FilterSelect testid="filter-bhk" label="BHK" value={filters.bhk} onChange={(v) => setFilter("bhk", v)} options={BHKS.map(b => ({ v: String(b), l: `${b} BHK` }))} />
@@ -104,7 +108,7 @@ export default function Properties() {
             <FilterSelect testid="filter-collection" label="Collection" value={filters.collection} onChange={(v) => setFilter("collection", v)} options={COLLECTIONS} />
             {(activeCount > 0 || q || maxPrice < 500) && (
               <button onClick={() => { clearAll(); setQ(""); setMaxPrice(500); }} data-testid="filter-clear"
-                className="ml-auto text-xs tracking-widest uppercase text-black/60 hover:text-charcoal flex items-center gap-1">
+                className="ml-auto text-xs tracking-widest uppercase text-black/60 dark:text-white/60 hover:text-charcoal dark:hover:text-white flex items-center gap-1">
                 <X size={12} /> Clear
               </button>
             )}
