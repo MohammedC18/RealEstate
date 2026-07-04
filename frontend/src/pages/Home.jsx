@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, useInView, useScroll, useTransform } from "framer-motion";
 import { ArrowUpRight, Award, ShieldCheck, Users, Sparkles, ChevronDown, Star, Quote, Building2, MapPinned, Handshake, KeyRound } from "lucide-react";
-import { listProperties, listTestimonials, listFaqs } from "../lib/api";
+import { listProperties, listTestimonials, listFaqs, listHeroBanners } from "../lib/api";
 import PropertyCard from "../components/PropertyCard";
 
 const HERO_VIDEO = "https://videos.pexels.com/video-files/5182061/5182061-hd_1920_1080_30fps.mp4";
@@ -56,10 +56,13 @@ function Counter({ label, value }) {
   );
 }
 
+import SEOHead from "../lib/seo";
+
 export default function Home() {
   const [properties, setProperties] = useState([]);
   const [testimonials, setTestimonials] = useState([]);
   const [faqs, setFaqs] = useState([]);
+  const [hero, setHero] = useState(null);
   const [openFaq, setOpenFaq] = useState(0);
   const heroRef = useRef(null);
   const { scrollY } = useScroll();
@@ -71,6 +74,11 @@ export default function Home() {
     listProperties({ featured: true }).then(setProperties).catch(() => {});
     listTestimonials().then(setTestimonials).catch(() => {});
     listFaqs().then(setFaqs).catch(() => {});
+    listHeroBanners().then(banners => {
+      const active = banners.filter(b => b.is_active);
+      const defaultBanner = active.find(b => b.is_default) || active[0];
+      setHero(defaultBanner);
+    }).catch(() => {});
   }, []);
 
   const apartments = properties.filter(p => p.type === "apartment").slice(0, 3);
@@ -78,14 +86,28 @@ export default function Home() {
 
   return (
     <div>
+      <SEOHead title="Aayat Real Estate — Luxury Properties in Mumbai" description="A boutique real estate advisory for luxury apartments, penthouses and villas across Mumbai's most desired addresses." />
       {/* ============================================================ HERO */}
       <section ref={heroRef} data-testid="home-hero" className="relative h-[100svh] min-h-[580px] overflow-hidden bg-[#0A0A0A]">
         <motion.div style={{ y: heroY, opacity: heroOpacity }} className="absolute inset-0">
-          <video autoPlay loop muted playsInline poster={HERO_FALLBACK}
-            className="absolute inset-0 w-full h-full object-cover">
-            <source src={HERO_VIDEO} type="video/mp4" />
-          </video>
-          <img src={HERO_FALLBACK} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover -z-10 ken-burns" />
+          {hero?.desktop_media?.endsWith('.mp4') || HERO_VIDEO ? (
+            <video autoPlay loop muted playsInline poster={hero?.desktop_media?.endsWith('.mp4') ? undefined : hero?.desktop_media || HERO_FALLBACK}
+              className="absolute inset-0 w-full h-full object-cover hidden md:block">
+              <source src={hero?.desktop_media || HERO_VIDEO} type="video/mp4" />
+            </video>
+          ) : (
+            <img src={hero?.desktop_media || HERO_FALLBACK} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover hidden md:block ken-burns" />
+          )}
+
+          {hero?.mobile_media?.endsWith('.mp4') || HERO_VIDEO ? (
+            <video autoPlay loop muted playsInline poster={hero?.mobile_media?.endsWith('.mp4') ? undefined : hero?.mobile_media || HERO_FALLBACK}
+              className="absolute inset-0 w-full h-full object-cover md:hidden">
+              <source src={hero?.mobile_media || HERO_VIDEO} type="video/mp4" />
+            </video>
+          ) : (
+            <img src={hero?.mobile_media || HERO_FALLBACK} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover md:hidden ken-burns" />
+          )}
+          
           <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/30 to-black/80" />
         </motion.div>
 
@@ -95,18 +117,18 @@ export default function Home() {
           </motion.div>
           <motion.h1
             initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1.1, delay: 0.35 }}
-            className="font-serif-luxe text-white text-[44px] sm:text-6xl md:text-7xl lg:text-[92px] leading-[0.98] font-light tracking-tight mt-4 max-w-4xl">
-            Live Mumbai.<br /><em className="not-italic text-[#C8A96A]">Elevated.</em>
-          </motion.h1>
+            className="font-serif-luxe text-white text-[44px] sm:text-6xl md:text-7xl lg:text-[92px] leading-[0.98] font-light tracking-tight mt-4 max-w-4xl"
+            dangerouslySetInnerHTML={{ __html: (hero?.heading || "Live Mumbai.<br /><em class='not-italic text-[#C8A96A]'>Elevated.</em>").replace(/\n/g, "<br/>") }}
+          />
           <motion.p
             initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1, delay: 0.55 }}
             className="mt-6 max-w-xl text-white/75 text-base md:text-lg font-light leading-relaxed">
-            A curated portfolio of luxury apartments, penthouses and villas across the city's most desired addresses — from Bandra to Malabar Hill.
+            {hero?.subheading || "A curated portfolio of luxury apartments, penthouses and villas across the city's most desired addresses — from Bandra to Malabar Hill."}
           </motion.p>
           <motion.div
             initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1, delay: 0.75 }}
             className="mt-10 flex flex-wrap gap-4">
-            <Link to="/properties" data-testid="hero-explore" className="btn-gold">Explore Portfolio</Link>
+            <Link to={hero?.cta_link || "/properties"} data-testid="hero-explore" className="btn-gold">{hero?.cta_text || "Explore Portfolio"}</Link>
             <Link to="/contact?visit=1" data-testid="hero-book" className="btn-outline-light">Book Site Visit</Link>
           </motion.div>
         </div>

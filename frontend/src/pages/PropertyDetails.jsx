@@ -21,7 +21,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { useOutletContext } from "react-router-dom";
-import { getProperty, listProperties, createLead, getSettings } from "../lib/api";
+import { getProperty, listProperties, createLead, getSettings, incrementPropertyView } from "../lib/api";
 import { waLink } from "../lib/utils";
 import PropertyCard from "../components/PropertyCard";
 import PropertyGallery from "../components/PropertyGallery";
@@ -30,7 +30,7 @@ import RecentlyViewed from "../components/RecentlyViewed";
 import { useLocalArray } from "../components/EnhancedUI";
 import { InlineLoader } from "../components/PremiumLoader";
 import { downloadBrochure } from "../lib/brochure";
-import { track } from "../lib/analytics";
+import { track } from "../lib/telemetry";
 import SEOHead, { propertyJsonLd } from "../lib/seo";
 
 const schema = z.object({
@@ -86,6 +86,7 @@ export default function PropertyDetails() {
   useEffect(() => {
     getProperty(id).then((data) => { setP(data); track("view_property", { id: data.id, name: data.name }); }).catch(() => {});
     listProperties().then((list) => setRelated(list.filter((x) => x.id !== id).slice(0, 3))).catch(() => {});
+    incrementPropertyView(id);
     getSettings().then(setSettings).catch(() => {});
   }, [id]);
 
@@ -93,7 +94,7 @@ export default function PropertyDetails() {
 
   const onSubmit = async (data) => {
     try {
-      await createLead({ ...data, source: `property:${id}`, property_type: p?.type });
+      await createLead({ ...data, source: `Property: ${p?.name || id}`, property_id: id });
       toast.success("Enquiry received. Our advisor will call within 24 hours.");
       track("lead_submit", { source: `property:${id}` });
       reset();

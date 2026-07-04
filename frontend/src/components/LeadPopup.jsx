@@ -51,7 +51,8 @@ export default function LeadPopup() {
 
   const onSubmit = async (data) => {
     try {
-      await createLead({ ...data, source: "popup" });
+      const message = `Location: ${data.location} | Budget: ${data.budget} | Type: ${data.property_type}`;
+      await createLead({ name: data.full_name, phone: data.phone, email: data.email, message: message, source: "Popup: Exit Intent/Delay" });
       setSubmitted(true);
       toast.success("Thank you. Our senior advisor will call within 24 hours.");
       reset();

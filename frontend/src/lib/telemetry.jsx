@@ -7,14 +7,12 @@
  *
  * All are no-ops when the corresponding env var is not set — safe to ship as-is.
  */
-export function loadAnalytics() {
+export function loadTelemetry() {
   if (typeof window === "undefined") return;
-  const {
-    REACT_APP_GA_ID: GA,
-    REACT_APP_CLARITY_ID: CLARITY,
-    REACT_APP_META_PIXEL_ID: META,
-    REACT_APP_GTM_ID: GTM,
-  } = process.env;
+  const GA = import.meta.env.VITE_GA_ID;
+  const CLARITY = import.meta.env.VITE_CLARITY_ID;
+  const META = import.meta.env.VITE_META_PIXEL_ID;
+  const GTM = import.meta.env.VITE_GTM_ID;
 
   // Google Tag Manager
   if (GTM && !window.__gtm_loaded) {

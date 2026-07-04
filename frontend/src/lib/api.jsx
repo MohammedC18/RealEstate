@@ -10,7 +10,7 @@
  */
 import axios from "axios";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
 
 const client = axios.create({ baseURL: API, timeout: 15000 });
@@ -18,7 +18,7 @@ const client = axios.create({ baseURL: API, timeout: 15000 });
 // Attach admin token if present
 client.interceptors.request.use((cfg) => {
   const token = localStorage.getItem("aayat_admin_token");
-  if (token) cfg.headers["X-Admin-Token"] = token;
+  if (token) cfg.headers["Authorization"] = `Bearer ${token}`;
   return cfg;
 });
 
@@ -38,6 +38,12 @@ export const updateProperty = (id, payload) =>
 
 export const deleteProperty = (id) =>
   client.delete(`/properties/${id}`).then((r) => r.data);
+
+export const bulkPropertyAction = (action, ids) =>
+  client.post("/properties/bulk", { action, ids }).then((r) => r.data);
+
+export const incrementPropertyView = (id) =>
+  client.post(`/properties/${id}/view`).then((r) => r.data).catch(() => {});
 
 /* ---------------- Leads ---------------- */
 // Replace with: supabase.from('leads').insert(payload)
@@ -71,6 +77,19 @@ export const createFaq = (payload) =>
 
 export const deleteFaq = (id) =>
   client.delete(`/faqs/${id}`).then((r) => r.data);
+
+/* ---------------- Hero Banners ---------------- */
+export const listHeroBanners = () =>
+  client.get("/hero").then((r) => r.data);
+
+export const createHeroBanner = (payload) =>
+  client.post("/hero", payload).then((r) => r.data);
+
+export const updateHeroBanner = (id, payload) =>
+  client.put(`/hero/${id}`, payload).then((r) => r.data);
+
+export const deleteHeroBanner = (id) =>
+  client.delete(`/hero/${id}`).then((r) => r.data);
 
 /* ---------------- Settings ---------------- */
 // Replace with: supabase.from('settings').select().eq('id','singleton').single()

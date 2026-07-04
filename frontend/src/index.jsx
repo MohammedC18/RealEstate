@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "@/index.css";
 import App from "@/App";
 import PremiumLoader from "@/components/PremiumLoader";
-import { loadAnalytics } from "@/lib/analytics";
+import { loadTelemetry } from "@/lib/telemetry";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -18,9 +18,9 @@ const queryClient = new QueryClient({
 function AppShell() {
   const [ready, setReady] = useState(false);
   useEffect(() => {
-    loadAnalytics();
+    loadTelemetry();
     // Service worker registration (PWA)
-    if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") {
+    if ("serviceWorker" in navigator && import.meta.env.MODE === "production") {
       window.addEventListener("load", () => {
         navigator.serviceWorker.register("/sw.js").catch(() => {});
       });

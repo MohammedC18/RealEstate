@@ -13,8 +13,9 @@ import { useNavigate, Link } from "react-router-dom";
 import { toast } from "sonner";
 import {
   LayoutDashboard, Building2, MessageSquareQuote, HelpCircle, Inbox, Settings as SettingsIcon,
-  LogOut, Plus, Trash2, Edit3, X, ExternalLink,
+  LogOut, Plus, Trash2, Edit3, X, ExternalLink, BookOpen, ChevronRight, User
 } from "lucide-react";
+import { motion } from "framer-motion";
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -24,10 +25,13 @@ import {
   listProperties, createProperty, updateProperty, deleteProperty,
   listTestimonials, createTestimonial, deleteTestimonial,
   listFaqs, createFaq, deleteFaq,
-  listLeads, deleteLead, getSettings, updateSettings, API,
+  listLeads, deleteLead, getSettings, updateSettings, API, bulkPropertyAction,
+  listHeroBanners, createHeroBanner, updateHeroBanner, deleteHeroBanner
 } from "../../lib/api";
 import ImageUploader from "../../components/ImageUploader";
 import { compressToDataUrl } from "../../lib/imageUtils";
+import PropertyWizard from "../../components/admin/PropertyWizard";
+import HeroWizard from "../../components/admin/HeroWizard";
 
 const GOLD = "#C8A96A";
 const CHARCOAL = "#0A0A0A";
@@ -39,7 +43,9 @@ const NAV = [
   { k: "leads",        label: "Leads",         icon: Inbox },
   { k: "testimonials", label: "Testimonials",  icon: MessageSquareQuote },
   { k: "faqs",         label: "FAQs",          icon: HelpCircle },
+  { k: "heroes",       label: "Hero Banners",  icon: ExternalLink },
   { k: "cms",          label: "Site Content",  icon: SettingsIcon },
+  { k: "help",         label: "User Guide",    icon: BookOpen },
 ];
 
 export default function AdminDashboard() {
@@ -58,6 +64,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-[#F5F2EB] flex" data-testid="admin-dashboard">
+      <TourOverlay />
       <aside className="w-64 bg-[#0A0A0A] text-white p-6 hidden md:flex flex-col">
         <Link to="/" className="flex items-baseline gap-2 mb-10" target="_blank" rel="noopener noreferrer">
           <span className="font-serif-luxe text-3xl">Aayat</span>
@@ -92,7 +99,9 @@ export default function AdminDashboard() {
         {tab === "leads" && <LeadsTab />}
         {tab === "testimonials" && <TestimonialsTab />}
         {tab === "faqs" && <FaqsTab />}
+        {tab === "heroes" && <HeroBannersTab />}
         {tab === "cms" && <CMSTab />}
+        {tab === "help" && <HelpTab />}
       </main>
     </div>
   );
@@ -118,7 +127,7 @@ function Overview() {
   const [a, setA] = useState(null);
   useEffect(() => {
     axios.get(`${API}/admin/analytics`, {
-      headers: { "X-Admin-Token": localStorage.getItem("aayat_admin_token") || "" },
+      headers: { "Authorization": `Bearer ${localStorage.getItem("aayat_admin_token") || ""}` },
     }).then((r) => setA(r.data)).catch(() => {});
   }, []);
   if (!a) return <Section title="Overview"><div className="text-black/40">Loading analytics…</div></Section>;
@@ -215,22 +224,61 @@ function Overview() {
 function PropertiesTab() {
   const [list, setList] = useState([]);
   const [editing, setEditing] = useState(null);
+  const [selected, setSelected] = useState([]);
+  const [search, setSearch] = useState("");
+  const [filterType, setFilterType] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
 
   const load = () => listProperties().then(setList).catch(() => {});
   useEffect(() => { load(); }, []);
 
   const remove = async (id) => {
     if (!window.confirm("Delete this property?")) return;
-    await deleteProperty(id); toast.success("Deleted"); load();
+    await deleteProperty(id); toast.success("Property Deleted", { description: "The listing has been permanently removed." }); load();
   };
 
   const save = async (data) => {
     try {
-      if (editing?.id) await updateProperty(editing.id, { ...editing, ...data });
-      else await createProperty({ ...data });
-      toast.success("Saved");
+      if (editing?.id) { await updateProperty(editing.id, { ...editing, ...data }); toast.success("Property Updated", { description: "Changes are live on the website." }); }
+      else { await createProperty({ ...data }); toast.success("Property Published", { description: "The new listing is now live in the portfolio." }); }
       setEditing(null); load();
     } catch { toast.error("Save failed"); }
+  };
+
+  const handleBulk = async (action) => {
+    if (selected.length === 0) return;
+    if (action === 'delete' && !window.confirm(`Delete ${selected.length} properties?`)) return;
+    try {
+      await bulkPropertyAction(action, selected);
+      toast.success(`Bulk ${action} successful`);
+      setSelected([]);
+      load();
+    } catch {
+      toast.error("Bulk action failed");
+    }
+  };
+
+  const toggleSelect = (id) => {
+    setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
+  };
+  
+  const filteredList = list.filter(p => {
+    if (search && !p.name.toLowerCase().includes(search.toLowerCase()) && !(p.project_name || "").toLowerCase().includes(search.toLowerCase())) return false;
+    if (filterType !== "all" && p.type !== filterType) return false;
+    if (filterStatus !== "all") {
+      if (filterStatus === "archived" && !p.is_archived) return false;
+      if (filterStatus === "featured" && !p.featured) return false;
+      if (filterStatus === "ready" && p.status !== "ready") return false;
+      if (filterStatus === "under-construction" && p.status !== "under-construction") return false;
+    }
+    return true;
+  });
+
+  const stats = {
+    total: list.length,
+    featured: list.filter(p => p.featured).length,
+    archived: list.filter(p => p.is_archived).length,
+    ready: list.filter(p => p.status === 'ready').length
   };
 
   return (
@@ -239,156 +287,153 @@ function PropertiesTab() {
         <Plus size={14} /> Add Property
       </button>
     }>
-      <div className="bg-white border border-black/5 overflow-x-auto">
+      
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="bg-white border border-black/5 p-4 text-center">
+          <div className="text-[10px] uppercase tracking-widest text-black/50">Total Properties</div>
+          <div className="text-2xl font-serif-luxe text-charcoal">{stats.total}</div>
+        </div>
+        <div className="bg-white border border-black/5 p-4 text-center">
+          <div className="text-[10px] uppercase tracking-widest text-black/50">Featured</div>
+          <div className="text-2xl font-serif-luxe text-[#C8A96A]">{stats.featured}</div>
+        </div>
+        <div className="bg-white border border-black/5 p-4 text-center">
+          <div className="text-[10px] uppercase tracking-widest text-black/50">Ready to Move</div>
+          <div className="text-2xl font-serif-luxe text-charcoal">{stats.ready}</div>
+        </div>
+        <div className="bg-white border border-black/5 p-4 text-center">
+          <div className="text-[10px] uppercase tracking-widest text-black/50">Archived</div>
+          <div className="text-2xl font-serif-luxe text-red-800/60">{stats.archived}</div>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap justify-between items-center mb-4 bg-white p-3 border border-black/5 gap-3">
+        <div className="flex flex-wrap gap-3">
+          <input placeholder="Search properties..." value={search} onChange={e => setSearch(e.target.value)} className="h-9 px-3 border border-black/15 text-sm w-64" />
+          <select value={filterType} onChange={e => setFilterType(e.target.value)} className="h-9 px-3 border border-black/15 text-sm bg-white">
+            <option value="all">All Types</option><option value="apartment">Apartment</option><option value="villa">Villa</option><option value="penthouse">Penthouse</option>
+          </select>
+          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="h-9 px-3 border border-black/15 text-sm bg-white">
+            <option value="all">All Status</option><option value="featured">Featured</option><option value="archived">Archived</option><option value="ready">Ready</option><option value="under-construction">Under Construction</option>
+          </select>
+        </div>
+        
+        {selected.length > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-[#C8A96A] mr-2">{selected.length} selected</span>
+            <select onChange={e => { handleBulk(e.target.value); e.target.value=""; }} className="h-9 px-3 border border-black/15 text-sm bg-white">
+              <option value="">Bulk Actions...</option>
+              <option value="feature">Feature</option>
+              <option value="unfeature">Unfeature</option>
+              <option value="archive">Archive</option>
+              <option value="unarchive">Unarchive (Publish)</option>
+              <option value="duplicate">Duplicate</option>
+              <option value="delete">Delete</option>
+            </select>
+          </div>
+        )}
+      </div>
+
+      {/* ---- Mobile card grid ---- */}
+      <div className="md:hidden space-y-3">
+        {filteredList.length === 0 && (
+          <div className="bg-white border border-black/5 p-12 text-center flex flex-col items-center justify-center text-black/40">
+            <Building2 size={40} strokeWidth={1} className="mb-3 text-[#C8A96A]/50" />
+            <p className="font-serif-luxe text-2xl text-charcoal mb-1">No properties found</p>
+            <button className="btn-gold !py-2 !text-xs mt-4" onClick={() => setEditing({})}>Add Property</button>
+          </div>
+        )}
+        {filteredList.map(p => (
+          <div key={p.id} className={`bg-white border border-black/5 p-4 ${p.is_archived ? 'opacity-60' : ''}`}>
+            <div className="flex gap-3">
+              <input type="checkbox" className="mt-1" checked={selected.includes(p.id)} onChange={() => toggleSelect(p.id)} />
+              {(p.cover_image || p.images?.[0])
+                ? <img src={p.cover_image || p.images[0]} alt="" className="w-16 h-12 object-cover border border-black/10 shrink-0" />
+                : <div className="w-16 h-12 bg-black/5 shrink-0" />}
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-charcoal text-sm truncate">
+                  {p.name} {p.featured && <span className="text-[9px] bg-[#C8A96A] text-charcoal px-1 py-0.5 uppercase tracking-widest ml-1">Featured</span>}
+                </div>
+                <div className="text-xs text-black/50">{p.type} {p.bhk ? `• ${p.bhk} BHK` : ''} • {p.location}</div>
+                <div className="flex items-center justify-between mt-2">
+                  <span className="text-[#C8A96A] font-medium text-sm">{p.price}</span>
+                  <span className="text-xs text-black/40">{p.views || 0} views</span>
+                </div>
+                <div className="flex items-center justify-between mt-2">
+                  <span className={`text-[10px] uppercase tracking-widest px-2 py-0.5 border ${p.is_archived ? 'border-red-300 text-red-700' : 'border-[#C8A96A]/40 text-[#C8A96A]'}`}>
+                    {p.is_archived ? 'Archived' : 'Published'}
+                  </span>
+                  <div className="flex gap-3">
+                    <button onClick={() => setEditing(p)} className="text-black/60 hover:text-charcoal"><Edit3 size={15} /></button>
+                    <button onClick={() => remove(p.id)} className="text-black/60 hover:text-red-600"><Trash2 size={15} /></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ---- Desktop table ---- */}
+      <div className="hidden md:block bg-white border border-black/5 overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-[#F5F2EB] text-black/60 text-xs uppercase tracking-wider">
             <tr>
+              <th className="p-4 w-12 text-center">
+                <input type="checkbox" checked={selected.length === filteredList.length && filteredList.length > 0} onChange={(e) => setSelected(e.target.checked ? filteredList.map(x=>x.id) : [])} />
+              </th>
               <th className="text-left p-4">Cover</th>
-              <th className="text-left p-4">Name</th>
+              <th className="text-left p-4">Property</th>
               <th className="text-left p-4">Location</th>
-              <th className="text-left p-4">Type</th>
-              <th className="text-left p-4">BHK</th>
               <th className="text-left p-4">Price</th>
               <th className="text-left p-4">Views</th>
+              <th className="text-left p-4">Status</th>
               <th className="text-right p-4">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {list.map((p) => (
-              <tr key={p.id} className="border-t border-black/5">
-                <td className="p-4">
-                  {p.images?.[0] ? <img src={p.images[0]} alt="" className="w-14 h-10 object-cover" /> : <div className="w-14 h-10 bg-black/5" />}
+            {filteredList.map((p) => (
+              <tr key={p.id} className={`border-t border-black/5 ${p.is_archived ? 'opacity-60 bg-black/5' : ''}`}>
+                <td className="p-4 text-center">
+                  <input type="checkbox" checked={selected.includes(p.id)} onChange={() => toggleSelect(p.id)} />
                 </td>
-                <td className="p-4 font-medium">{p.name} {p.featured && <span className="ml-1 text-[9px] bg-[#C8A96A] text-charcoal px-1 py-0.5 uppercase tracking-widest">Featured</span>}</td>
+                <td className="p-4">
+                  {(p.cover_image || p.images?.[0]) ? <img src={p.cover_image || p.images[0]} alt="" className="w-14 h-10 object-cover border border-black/10" /> : <div className="w-14 h-10 bg-black/5" />}
+                </td>
+                <td className="p-4">
+                  <div className="font-medium text-charcoal">{p.name} {p.featured && <span className="ml-1 text-[9px] bg-[#C8A96A] text-charcoal px-1 py-0.5 uppercase tracking-widest">Featured</span>}</div>
+                  <div className="text-xs text-black/50">{p.type} • {p.bhk ? p.bhk + " BHK" : ""}</div>
+                </td>
                 <td className="p-4 text-black/60">{p.location}</td>
-                <td className="p-4 text-black/60 capitalize">{p.type}</td>
-                <td className="p-4 text-black/60">{p.bhk}</td>
-                <td className="p-4 text-[#C8A96A]">{p.price}</td>
+                <td className="p-4 text-[#C8A96A] font-medium">{p.price}</td>
                 <td className="p-4 text-black/60">{p.views || 0}</td>
+                <td className="p-4 text-black/60 capitalize">
+                  {p.is_archived ? <span className="text-red-700 font-medium">Archived</span> : "Published"}
+                </td>
                 <td className="p-4 text-right">
                   <button onClick={() => setEditing(p)} className="text-black/60 hover:text-charcoal mr-3" data-testid={`admin-edit-${p.id}`}><Edit3 size={14} /></button>
                   <button onClick={() => remove(p.id)} className="text-black/60 hover:text-red-600" data-testid={`admin-delete-${p.id}`}><Trash2 size={14} /></button>
                 </td>
               </tr>
             ))}
-            {list.length === 0 && <tr><td colSpan={8} className="p-8 text-center text-black/40">No properties yet.</td></tr>}
+            {filteredList.length === 0 && (
+              <tr>
+                <td colSpan={8} className="p-20 text-center">
+                  <div className="flex flex-col items-center justify-center text-black/40">
+                    <Building2 size={48} strokeWidth={1} className="mb-4 text-[#C8A96A]/50" />
+                    <p className="font-serif-luxe text-3xl text-charcoal mb-2">No properties found</p>
+                    <p className="text-sm max-w-sm mx-auto mb-6">Adjust your search/filters or click "Add Property" to curate a listing.</p>
+                    <button className="btn-gold !py-2 !text-xs" onClick={() => setEditing({})}>Add Property</button>
+                  </div>
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
 
-      {editing && <PropertyForm initial={editing} onSubmit={save} onClose={() => setEditing(null)} />}
+      {editing && <PropertyWizard initial={editing} onSubmit={save} onClose={() => setEditing(null)} />}
     </Section>
-  );
-}
-
-function PropertyForm({ initial, onSubmit, onClose }) {
-  const [f, setF] = useState({
-    name: initial.name || "", type: initial.type || "apartment", location: initial.location || "Bandra West",
-    price: initial.price || "", price_numeric: initial.price_numeric || 0,
-    bhk: initial.bhk || 3, area_sqft: initial.area_sqft || 1500,
-    status: initial.status || "ready", collection: initial.collection || "luxury",
-    tagline: initial.tagline || "", description: initial.description || "",
-    images: initial.images || [], possession: initial.possession || "Ready to Move",
-    builder: initial.builder || "", parking: initial.parking || 2,
-    featured: initial.featured || false,
-    highlights: (initial.highlights || []).join("\n"),
-    amenities: (initial.amenities || []).join("\n"),
-    badges: (initial.badges || []).join(", "),
-    seo_title: initial.seo_title || "",
-    seo_description: initial.seo_description || "",
-  });
-  const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
-
-  const submit = (e) => {
-    e.preventDefault();
-    onSubmit({
-      ...f,
-      bhk: Number(f.bhk), area_sqft: Number(f.area_sqft), parking: Number(f.parking), price_numeric: Number(f.price_numeric || 0),
-      highlights: f.highlights.split("\n").map((s) => s.trim()).filter(Boolean),
-      amenities: f.amenities.split("\n").map((s) => s.trim()).filter(Boolean),
-      badges: f.badges.split(",").map((s) => s.trim()).filter(Boolean),
-    });
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
-      <form onClick={(e) => e.stopPropagation()} onSubmit={submit}
-        className="bg-white w-full max-w-4xl p-8 max-h-[92vh] overflow-y-auto" data-testid="admin-property-form">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="font-serif-luxe text-3xl">{initial.id ? "Edit" : "Add"} Property</h3>
-          <button type="button" onClick={onClose}><X /></button>
-        </div>
-
-        <div className="mb-6">
-          <div className="text-[11px] tracking-widest uppercase text-black/60 mb-2">Images</div>
-          <ImageUploader value={f.images} onChange={(imgs) => set("images", imgs)} />
-        </div>
-
-        <div className="grid sm:grid-cols-2 gap-4 text-sm">
-          {[
-            ["name", "Name", "text"], ["tagline", "Tagline", "text"], ["location", "Location", "text"],
-            ["price", "Price (display, e.g. ₹ 12 Cr onwards)", "text"], ["price_numeric", "Price numeric (₹)", "number"],
-            ["bhk", "BHK", "number"], ["area_sqft", "Area (sqft)", "number"],
-            ["parking", "Parking", "number"], ["builder", "Builder", "text"], ["possession", "Possession", "text"],
-          ].map(([k, l, t]) => (
-            <label key={k} className="block">
-              <span className="text-[11px] tracking-widest uppercase text-black/60">{l}</span>
-              <input type={t} value={f[k]} onChange={(e) => set(k, e.target.value)} className="w-full h-10 px-2 border border-black/15 mt-1" />
-            </label>
-          ))}
-          <label className="block">
-            <span className="text-[11px] tracking-widest uppercase text-black/60">Type</span>
-            <select value={f.type} onChange={(e) => set("type", e.target.value)} className="w-full h-10 px-2 border border-black/15 mt-1">
-              <option value="apartment">Apartment</option><option value="villa">Villa</option><option value="penthouse">Penthouse</option>
-            </select>
-          </label>
-          <label className="block">
-            <span className="text-[11px] tracking-widest uppercase text-black/60">Status</span>
-            <select value={f.status} onChange={(e) => set("status", e.target.value)} className="w-full h-10 px-2 border border-black/15 mt-1">
-              <option value="ready">Ready</option><option value="under-construction">Under Construction</option>
-            </select>
-          </label>
-          <label className="block">
-            <span className="text-[11px] tracking-widest uppercase text-black/60">Collection</span>
-            <select value={f.collection} onChange={(e) => set("collection", e.target.value)} className="w-full h-10 px-2 border border-black/15 mt-1">
-              <option value="luxury">Luxury</option><option value="signature">Signature</option><option value="classic">Classic</option>
-            </select>
-          </label>
-          <label className="flex items-center gap-2 mt-6">
-            <input type="checkbox" checked={f.featured} onChange={(e) => set("featured", e.target.checked)} />
-            <span className="text-[11px] tracking-widest uppercase text-black/60">Featured on homepage</span>
-          </label>
-          <label className="block sm:col-span-2">
-            <span className="text-[11px] tracking-widest uppercase text-black/60">Badges (comma-separated)</span>
-            <input value={f.badges} onChange={(e) => set("badges", e.target.value)} className="w-full h-10 px-2 border border-black/15 mt-1" />
-          </label>
-          <label className="block sm:col-span-2">
-            <span className="text-[11px] tracking-widest uppercase text-black/60">Highlights (one per line)</span>
-            <textarea value={f.highlights} onChange={(e) => set("highlights", e.target.value)} rows={4} className="w-full px-2 py-1 border border-black/15 mt-1" />
-          </label>
-          <label className="block sm:col-span-2">
-            <span className="text-[11px] tracking-widest uppercase text-black/60">Amenities (one per line)</span>
-            <textarea value={f.amenities} onChange={(e) => set("amenities", e.target.value)} rows={4} className="w-full px-2 py-1 border border-black/15 mt-1" />
-          </label>
-          <label className="block sm:col-span-2">
-            <span className="text-[11px] tracking-widest uppercase text-black/60">Description</span>
-            <textarea value={f.description} onChange={(e) => set("description", e.target.value)} rows={4} className="w-full px-2 py-1 border border-black/15 mt-1" />
-          </label>
-          <label className="block sm:col-span-2">
-            <span className="text-[11px] tracking-widest uppercase text-black/60">SEO title (optional)</span>
-            <input value={f.seo_title} onChange={(e) => set("seo_title", e.target.value)} className="w-full h-10 px-2 border border-black/15 mt-1" />
-          </label>
-          <label className="block sm:col-span-2">
-            <span className="text-[11px] tracking-widest uppercase text-black/60">SEO description (optional)</span>
-            <textarea value={f.seo_description} onChange={(e) => set("seo_description", e.target.value)} rows={2} className="w-full px-2 py-1 border border-black/15 mt-1" />
-          </label>
-        </div>
-        <div className="flex justify-end gap-3 mt-8">
-          <button type="button" onClick={onClose} className="btn-outline-dark !py-2 !px-6 text-xs">Cancel</button>
-          <button type="submit" className="btn-gold" data-testid="admin-property-save">Save Property</button>
-        </div>
-      </form>
-    </div>
   );
 }
 
@@ -400,15 +445,48 @@ function LeadsTab() {
 
   const updateStatus = async (id, status) => {
     try {
+      const token = localStorage.getItem("aayat_admin_token") || "";
       await axios.put(`${API}/leads/${id}`, { status },
-        { headers: { "X-Admin-Token": localStorage.getItem("aayat_admin_token") || "" } });
-      toast.success("Status updated"); load();
+        { headers: { "Authorization": `Bearer ${token}` } });
+      toast.success("Lead Status Updated", { description: "The customer's inquiry status has been changed." }); load();
     } catch { toast.error("Failed"); }
   };
 
   return (
     <Section title="Leads">
-      <div className="bg-white border border-black/5 overflow-x-auto">
+      {/* Mobile cards */}
+      <div className="md:hidden space-y-3">
+        {list.length === 0 && (
+          <div className="bg-white border border-black/5 p-12 text-center flex flex-col items-center justify-center text-black/40">
+            <Inbox size={40} strokeWidth={1} className="mb-3 text-[#C8A96A]/50" />
+            <p className="font-serif-luxe text-2xl text-charcoal mb-1">No inquiries yet</p>
+            <p className="text-xs max-w-xs mx-auto">When clients fill out the contact form, their details will appear here.</p>
+          </div>
+        )}
+        {list.map(l => (
+          <div key={l.id} className="bg-white border border-black/5 p-4">
+            <div className="flex justify-between items-start">
+              <div>
+                <div className="font-medium text-charcoal">{l.name}</div>
+                <a href={`tel:${l.phone}`} className="text-sm text-[#C8A96A]">{l.phone}</a>
+              </div>
+              <button onClick={async () => { await deleteLead(l.id); load(); }} className="text-black/40 hover:text-red-600"><Trash2 size={14} /></button>
+            </div>
+            <a href={`mailto:${l.email}`} className="text-xs text-black/60 mt-1 block hover:text-[#C8A96A]">{l.email}</a>
+            {l.message && <p className="text-xs text-black/50 mt-2 line-clamp-2">{l.message}</p>}
+            <div className="flex items-center justify-between mt-3">
+              <span className="text-[10px] tracking-widest uppercase bg-[#F5F2EB] px-2 py-1">{l.source}</span>
+              <select value={l.status} onChange={(e) => updateStatus(l.id, e.target.value)} className="border border-black/15 h-8 px-2 text-xs">
+                <option value="new">New</option><option value="contacted">Contacted</option>
+                <option value="qualified">Qualified</option><option value="closed">Closed</option>
+              </select>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden md:block bg-white border border-black/5 overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-[#F5F2EB] text-black/60 text-xs uppercase tracking-wider">
             <tr>
@@ -421,11 +499,11 @@ function LeadsTab() {
           <tbody>
             {list.map((l) => (
               <tr key={l.id} className="border-t border-black/5">
-                <td className="p-4 font-medium">{l.full_name}</td>
+                <td className="p-4 font-medium">{l.name}</td>
                 <td className="p-4 text-black/60"><a href={`tel:${l.phone}`} className="hover:text-[#C8A96A]">{l.phone}</a></td>
                 <td className="p-4 text-black/60"><a href={`mailto:${l.email}`} className="hover:text-[#C8A96A]">{l.email}</a></td>
                 <td className="p-4"><span className="text-[10px] tracking-widest uppercase bg-[#F5F2EB] px-2 py-1">{l.source}</span></td>
-                <td className="p-4 text-black/60 max-w-xs truncate">{l.message || "—"}</td>
+                <td className="p-4 text-black/60 max-w-xs truncate" title={l.message || "—"}>{l.message || "—"}</td>
                 <td className="p-4">
                   <select value={l.status} onChange={(e) => updateStatus(l.id, e.target.value)} className="border border-black/15 h-8 px-2 text-xs">
                     <option value="new">New</option><option value="contacted">Contacted</option>
@@ -435,7 +513,17 @@ function LeadsTab() {
                 <td className="p-4 text-right"><button onClick={async () => { await deleteLead(l.id); load(); }} className="text-black/50 hover:text-red-600"><Trash2 size={14} /></button></td>
               </tr>
             ))}
-            {list.length === 0 && <tr><td colSpan={7} className="p-8 text-center text-black/40">No leads yet.</td></tr>}
+            {list.length === 0 && (
+              <tr>
+                <td colSpan={7} className="p-20 text-center">
+                  <div className="flex flex-col items-center justify-center text-black/40">
+                    <Inbox size={48} strokeWidth={1} className="mb-4 text-[#C8A96A]/50" />
+                    <p className="font-serif-luxe text-3xl text-charcoal mb-2">No inquiries yet</p>
+                    <p className="text-sm max-w-sm mx-auto mb-6">When prospective clients fill out the contact form or request a site visit, their details will appear here.</p>
+                  </div>
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -457,7 +545,7 @@ function TestimonialsTab() {
   };
   const submit = async (e) => {
     e.preventDefault();
-    await createTestimonial(f); toast.success("Added");
+    await createTestimonial(f); toast.success("Testimonial Published", { description: "Client quote is now visible on the site." });
     setF({ name: "", role: "", avatar: "", quote: "", rating: 5 }); load();
   };
 
@@ -478,6 +566,15 @@ function TestimonialsTab() {
         </label>
         <button className="btn-gold sm:col-span-2 w-fit">Add Testimonial</button>
       </form>
+      
+      {list.length === 0 && (
+        <div className="bg-white border border-black/5 p-16 text-center flex flex-col items-center justify-center text-black/40">
+          <MessageSquareQuote size={48} strokeWidth={1} className="mb-4 text-[#C8A96A]/50" />
+          <p className="font-serif-luxe text-3xl text-charcoal mb-2">No client stories</p>
+          <p className="text-sm max-w-sm mx-auto">Use the form above to add your first client testimonial and build trust.</p>
+        </div>
+      )}
+
       <div className="space-y-3">
         {list.map((t) => (
           <div key={t.id} className="bg-white border border-black/5 p-4 flex justify-between items-start gap-4">
@@ -502,7 +599,7 @@ function FaqsTab() {
   const [f, setF] = useState({ question: "", answer: "", order: 100 });
   const load = () => listFaqs().then(setList).catch(() => {});
   useEffect(() => { load(); }, []);
-  const submit = async (e) => { e.preventDefault(); await createFaq(f); toast.success("Added"); setF({ question: "", answer: "", order: 100 }); load(); };
+  const submit = async (e) => { e.preventDefault(); await createFaq(f); toast.success("FAQ Added", { description: "Question is now live." }); setF({ question: "", answer: "", order: 100 }); load(); };
   return (
     <Section title="FAQs">
       <form onSubmit={submit} className="bg-white border border-black/5 p-6 mb-6 space-y-3 text-sm">
@@ -513,6 +610,15 @@ function FaqsTab() {
         </label>
         <button className="btn-gold">Add FAQ</button>
       </form>
+
+      {list.length === 0 && (
+        <div className="bg-white border border-black/5 p-16 text-center flex flex-col items-center justify-center text-black/40 mb-3">
+          <HelpCircle size={48} strokeWidth={1} className="mb-4 text-[#C8A96A]/50" />
+          <p className="font-serif-luxe text-3xl text-charcoal mb-2">No FAQs</p>
+          <p className="text-sm max-w-sm mx-auto">Add frequently asked questions to help your customers quickly find answers.</p>
+        </div>
+      )}
+
       {list.map((x) => (
         <div key={x.id} className="bg-white border border-black/5 p-4 mb-3 flex justify-between items-start gap-4">
           <div>
@@ -532,7 +638,7 @@ function CMSTab() {
   useEffect(() => { getSettings().then(setS); }, []);
   if (!s) return <div className="text-black/40">Loading…</div>;
   const set = (k, v) => setS((p) => ({ ...p, [k]: v }));
-  const save = async (e) => { e.preventDefault(); await updateSettings(s); toast.success("Saved"); };
+  const save = async (e) => { e.preventDefault(); await updateSettings(s); toast.success("Site Content Saved", { description: "Changes have been successfully applied." }); };
 
   const uploadAbout = async (e) => {
     const file = e.target.files?.[0]; if (!file) return;
@@ -613,5 +719,213 @@ function Field({ label, value, onChange, multiline, testid }) {
         <input data-testid={testid} value={value} onChange={(e) => onChange(e.target.value)} className="w-full h-10 px-2 border border-black/15 mt-1 text-sm" />
       )}
     </label>
+  );
+}
+
+/* -------------------- TOUR OVERLAY -------------------- */
+function TourOverlay() {
+  const [show, setShow] = useState(() => !localStorage.getItem("aayat_admin_tour"));
+  const [step, setStep] = useState(0);
+
+  if (!show) return null;
+
+  const steps = [
+    { title: "Welcome to Aayat Admin", text: "This is your premium command center for managing the portfolio. Let's take a quick tour." },
+    { title: "Dashboard", text: "View high-level analytics, lead sources, and portfolio mix at a glance." },
+    { title: "Properties", text: "Add, edit, or remove luxury listings. You can crop, compress, and reorder images effortlessly." },
+    { title: "Leads", text: "Manage incoming inquiries and track their status from 'New' to 'Closed'." },
+    { title: "Site Content", text: "Control the hero section, about details, and footer directly without writing code." },
+    { title: "User Guide", text: "Need help? The comprehensive user guide is always available here." }
+  ];
+
+  const next = () => {
+    if (step === steps.length - 1) {
+      localStorage.setItem("aayat_admin_tour", "1");
+      setShow(false);
+    } else {
+      setStep(s => s + 1);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+      <motion.div initial={{ opacity: 0, y: 20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} className="bg-white max-w-md w-full p-8 shadow-2xl relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-1 bg-black/5">
+          <motion.div className="h-full bg-[#C8A96A]" initial={{ width: 0 }} animate={{ width: `${((step + 1) / steps.length) * 100}%` }} />
+        </div>
+        <span className="label-eyebrow mb-2 block">Step {step + 1} of {steps.length}</span>
+        <h3 className="font-serif-luxe text-3xl mb-3 text-charcoal">{steps[step].title}</h3>
+        <p className="text-sm text-black/60 leading-relaxed mb-8">{steps[step].text}</p>
+        <div className="flex justify-between items-center">
+          <button onClick={() => { localStorage.setItem("aayat_admin_tour", "1"); setShow(false); }} className="text-xs tracking-widest uppercase text-black/40 hover:text-charcoal transition-colors">Skip Tour</button>
+          <button onClick={next} className="btn-gold !py-2 !px-6 !text-xs">
+            {step === steps.length - 1 ? "Get Started" : "Next"} <ChevronRight size={14} />
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+/* -------------------- HELP / USER GUIDE -------------------- */
+function HelpTab() {
+  return (
+    <Section title="User Guide">
+      <div className="max-w-4xl bg-white border border-black/5 p-8 md:p-12 space-y-12">
+        <div>
+          <h2 className="font-serif-luxe text-3xl border-b border-black/10 pb-4 mb-6">Login & Security</h2>
+          <div className="space-y-4 text-sm text-black/70 font-light">
+            <p><strong className="font-medium text-charcoal">Login:</strong> Access the portal via <code className="bg-black/5 px-1 py-0.5 text-xs text-charcoal">/admin/login</code> using your secure credentials.</p>
+            <p><strong className="font-medium text-charcoal">Logout:</strong> Click the "Sign out" button at the bottom of the sidebar. This clears your active session securely.</p>
+            <p><strong className="font-medium text-charcoal">Change Password:</strong> The authentication architecture is currently API-driven. Future iterations will expose this in Settings. Contact development for urgent resets.</p>
+          </div>
+        </div>
+
+        <div>
+          <h2 className="font-serif-luxe text-3xl border-b border-black/10 pb-4 mb-6">Dashboard</h2>
+          <div className="space-y-4 text-sm text-black/70 font-light">
+            <p>The dashboard provides a bird's-eye view of your operations:</p>
+            <ul className="list-disc pl-5 space-y-2">
+              <li><strong className="font-medium text-charcoal">KPI Cards:</strong> Track total published properties, overall lead volume, fresh leads, and cumulative portfolio views.</li>
+              <li><strong className="font-medium text-charcoal">Leads Series Chart:</strong> Visualize inquiry volume over the last 30 days to gauge marketing performance.</li>
+              <li><strong className="font-medium text-charcoal">Sources & Status:</strong> Analyze which channels (e.g., Contact Form vs Book Visit) drive the most value.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div>
+          <h2 className="font-serif-luxe text-3xl border-b border-black/10 pb-4 mb-6">Properties</h2>
+          <div className="space-y-4 text-sm text-black/70 font-light">
+            <p><strong className="font-medium text-charcoal">Adding/Editing:</strong> Click "Add Property" to open the rich editor. Fill in specifications, pricing, builder, and possession date.</p>
+            <p><strong className="font-medium text-charcoal">Featured Status:</strong> Check "Featured on homepage" to display the listing prominently in the main hero carousel.</p>
+            <p><strong className="font-medium text-charcoal">Images & Uploads:</strong> The image uploader automatically compresses large files (up to 1600px width/height and &lt; 400KB) to maintain rapid page load times. Supported formats include JPG, PNG, and WebP. Drag to reorder images; the first image acts as the primary cover.</p>
+            <p><strong className="font-medium text-charcoal">Deletion:</strong> Clicking the trash icon permanently removes a listing. This action cannot be undone.</p>
+          </div>
+        </div>
+
+        <div>
+          <h2 className="font-serif-luxe text-3xl border-b border-black/10 pb-4 mb-6">Leads & Customers</h2>
+          <div className="space-y-4 text-sm text-black/70 font-light">
+            <p><strong className="font-medium text-charcoal">Viewing:</strong> All inquiries appear instantly in the table.</p>
+            <p><strong className="font-medium text-charcoal">Status Updates:</strong> Use the dropdown to update a lead's status (New → Contacted → Qualified → Closed) to keep your pipeline organized.</p>
+            <p><strong className="font-medium text-charcoal">Follow-up:</strong> Click on a phone number to launch your dialer, or email to launch your mail client. For WhatsApp, ensure the number format includes the country code.</p>
+          </div>
+        </div>
+        
+        <div>
+          <h2 className="font-serif-luxe text-3xl border-b border-black/10 pb-4 mb-6">Testimonials & FAQs</h2>
+          <div className="space-y-4 text-sm text-black/70 font-light">
+            <p><strong className="font-medium text-charcoal">Testimonials:</strong> Add client name, their role/company, a 1-5 star rating, and their quote. The avatar upload follows the same compression rules as property images.</p>
+            <p><strong className="font-medium text-charcoal">FAQs:</strong> Add questions and answers. Use the "Sort order" field (lower numbers appear first) to arrange them logically on the frontend.</p>
+          </div>
+        </div>
+
+        <div>
+          <h2 className="font-serif-luxe text-3xl border-b border-black/10 pb-4 mb-6">Site Content (CMS)</h2>
+          <div className="space-y-4 text-sm text-black/70 font-light">
+            <p>Control global text and settings centrally without touching code. Update your phone number, social links, hero text, and SEO metadata. Save to instantly reflect changes on the live site.</p>
+            <p><strong className="font-medium text-charcoal">Analytics IDs:</strong> Paste your Google Analytics (G-XXXX), Tag Manager, Meta Pixel, or Microsoft Clarity IDs here to automatically enable telemetry and tracking.</p>
+          </div>
+        </div>
+
+        <div className="bg-[#F5F2EB] p-8 text-center mt-12 border border-black/5">
+          <p className="text-sm font-medium text-charcoal mb-2">Need technical support?</p>
+          <p className="text-xs text-black/60 font-light">Contact your designated development partner: <a href="https://yourportfolio.com" className="text-[#C8A96A] hover:underline">Mohammed Chunawala</a></p>
+        </div>
+      </div>
+    </Section>
+  );
+}
+
+
+/* -------------------- HERO BANNERS TAB -------------------- */
+function HeroBannersTab() {
+  const [list, setList] = useState([]);
+  const [editing, setEditing] = useState(null);
+
+  const load = () => listHeroBanners().then(setList).catch(() => {});
+  useEffect(() => { load(); }, []);
+
+  const remove = async (id) => {
+    if (!window.confirm("Delete this banner?")) return;
+    await deleteHeroBanner(id); toast.success("Banner deleted"); load();
+  };
+
+  const save = async (data) => {
+    try {
+      if (editing?.id) { await updateHeroBanner(editing.id, data); toast.success("Banner updated"); }
+      else { await createHeroBanner(data); toast.success("Banner created"); }
+      setEditing(null); load();
+    } catch { toast.error("Save failed"); }
+  };
+
+  return (
+    <Section title="Hero Banners" right={<button className="btn-gold" onClick={() => setEditing({})}><Plus size={14} /> Add Banner</button>}>
+      <div className="bg-white border border-black/5 overflow-hidden">
+        <table className="w-full text-sm hidden md:table">
+          <thead className="bg-[#F5F2EB] text-black/60 text-xs uppercase tracking-wider">
+            <tr>
+              <th className="text-left p-4">Desktop / Mobile</th>
+              <th className="text-left p-4">Content</th>
+              <th className="text-left p-4">Status</th>
+              <th className="text-right p-4">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.map((h) => (
+              <tr key={h.id} className="border-t border-black/5">
+                <td className="p-4 flex gap-2 items-center">
+                  <div className="relative w-20 h-12 bg-black/5 border border-black/10 flex items-center justify-center overflow-hidden">
+                    {h.desktop_media.endsWith('.mp4') ? <span className="text-[9px] uppercase tracking-widest text-black/40">Video</span> : <img src={h.desktop_media} alt="" className="w-full h-full object-cover" />}
+                  </div>
+                  <div className="relative w-8 h-12 bg-black/5 border border-black/10 flex items-center justify-center overflow-hidden">
+                    {h.mobile_media.endsWith('.mp4') ? <span className="text-[9px] uppercase tracking-widest text-black/40">Video</span> : <img src={h.mobile_media} alt="" className="w-full h-full object-cover" />}
+                  </div>
+                </td>
+                <td className="p-4">
+                  <div className="font-serif-luxe text-lg text-charcoal">{h.heading}</div>
+                  <div className="text-xs text-black/50 line-clamp-1">{h.subheading}</div>
+                </td>
+                <td className="p-4">
+                  {h.is_default && <span className="text-[10px] uppercase tracking-widest bg-[#C8A96A] text-charcoal px-2 py-1 mr-2">Default</span>}
+                  {h.is_active ? <span className="text-green-700 font-medium">Active</span> : <span className="text-red-700 font-medium">Inactive</span>}
+                </td>
+                <td className="p-4 text-right">
+                  <button onClick={() => setEditing(h)} className="text-black/60 hover:text-charcoal mr-3"><Edit3 size={14} /></button>
+                  <button onClick={() => remove(h.id)} className="text-black/60 hover:text-red-600"><Trash2 size={14} /></button>
+                </td>
+              </tr>
+            ))}
+            {list.length === 0 && (
+              <tr><td colSpan={4} className="p-10 text-center text-black/50">No hero banners found.</td></tr>
+            )}
+          </tbody>
+        </table>
+        <div className="md:hidden flex flex-col">
+          {list.map(h => (
+            <div key={h.id} className="p-4 border-b border-black/5 flex flex-col gap-3">
+              <div className="flex gap-2">
+                <img src={h.desktop_media} className="w-16 h-10 object-cover border border-black/10" />
+                <div className="flex-1">
+                  <div className="font-serif-luxe text-base text-charcoal">{h.heading}</div>
+                  <div className="text-xs text-black/50 line-clamp-1">{h.subheading}</div>
+                </div>
+              </div>
+              <div className="flex justify-between items-center">
+                <div>
+                  {h.is_default && <span className="text-[10px] uppercase tracking-widest bg-[#C8A96A] text-charcoal px-2 py-1 mr-2">Default</span>}
+                  {h.is_active ? <span className="text-green-700 text-xs">Active</span> : <span className="text-red-700 text-xs">Inactive</span>}
+                </div>
+                <div className="flex gap-4">
+                  <button onClick={() => setEditing(h)}><Edit3 size={16} /></button>
+                  <button onClick={() => remove(h.id)} className="text-red-600"><Trash2 size={16} /></button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      {editing && <HeroWizard initial={editing} onSubmit={save} onClose={() => setEditing(null)} />}
+    </Section>
   );
 }

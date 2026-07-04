@@ -15,6 +15,13 @@ from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timezone, timedelta
 from collections import Counter
+import jwt
+from passlib.context import CryptContext
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+SECRET_KEY = os.environ.get("JWT_SECRET", "super-secret-key-aayat-2026")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 # 7 days
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -38,56 +45,122 @@ class Property(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
+    project_name: Optional[str] = None
+    rera_number: Optional[str] = None
     tagline: Optional[str] = None
     type: str  # apartment | villa | penthouse
+    
+    # Location
     location: str
-    price: str
+    locality: Optional[str] = None
+    landmark: Optional[str] = None
+    pincode: Optional[str] = None
+    map_link: Optional[str] = None
+    
+    # Advanced Pricing
+    price_type: Optional[str] = "fixed" # fixed | range | starting_from | por
+    min_price: Optional[float] = None
+    max_price: Optional[float] = None
+    min_price_unit: Optional[str] = "Crore" # Thousand | Lakh | Crore
+    max_price_unit: Optional[str] = "Crore"
+    price: str = "" # Legacy string, auto-calculated
     price_numeric: float = 0
-    bhk: int
-    area_sqft: int
-    parking: int = 1
+    
+    # Details & Specs
+    bhk: int = 0
+    area_sqft: int = 0
+    carpet_area: Optional[int] = None
+    built_up_area: Optional[int] = None
+    super_built_up_area: Optional[int] = None
+    bathrooms: Optional[int] = None
+    balconies: Optional[int] = None
+    parking: int = 0
+    floor_number: Optional[str] = None
+    total_floors: Optional[int] = None
+    furnishing_status: Optional[str] = None
+    possession: str = ""
+    facing_direction: Optional[str] = None
+    property_age: Optional[str] = None
+    custom_specifications: List[Dict[str, str]] = []
+    
     status: str
     collection: Optional[str] = None
     badges: List[str] = []
     images: List[str] = []
+    cover_image: Optional[str] = None
     amenities: List[str] = []
     highlights: List[str] = []
     description: str = ""
     builder: str = ""
-    possession: str = ""
+    
+    # Media
     floor_plan: Optional[str] = None
     map_embed: Optional[str] = None
-    featured: bool = False
-    views: int = 0
+    brochure_pdf: Optional[str] = None
+    video_url: Optional[str] = None
+    virtual_tour_url: Optional[str] = None
+    
+    # SEO
     seo_title: Optional[str] = None
     seo_description: Optional[str] = None
+    seo_slug: Optional[str] = None
+    seo_og_image: Optional[str] = None
+    seo_keywords: Optional[str] = None
+    
+    featured: bool = False
+    views: int = 0
+    is_archived: bool = False
     created_at: str = Field(default_factory=now_iso)
+
+
+class BulkActionRequest(BaseModel):
+    action: str
+    ids: List[str]
 
 
 class Lead(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    full_name: str
-    phone: str
+    name: str
     email: EmailStr
-    location: Optional[str] = None
-    budget: Optional[str] = None
-    property_type: Optional[str] = None
+    phone: str
     message: Optional[str] = None
-    source: str = "website"
-    status: str = "new"
+    property_id: Optional[str] = None
+    source: str = "Direct"
+    status: str = "new"  # new | contacted | closed
+    created_at: str = Field(default_factory=now_iso)
+
+
+class HeroBanner(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    desktop_media: str
+    mobile_media: str
+    heading: str
+    subheading: str
+    cta_text: str = "Explore Portfolio"
+    cta_link: str = "/properties"
+    is_active: bool = True
+    is_default: bool = False
+    sort_order: int = 0
+    created_at: str = Field(default_factory=now_iso)
+
+
+class AdminUser(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    email: EmailStr
+    hashed_password: str
     created_at: str = Field(default_factory=now_iso)
 
 
 class LeadCreate(BaseModel):
-    full_name: str
+    name: str
     phone: str
     email: EmailStr
-    location: Optional[str] = None
-    budget: Optional[str] = None
-    property_type: Optional[str] = None
     message: Optional[str] = None
-    source: str = "website"
+    property_id: Optional[str] = None
+    source: str = "Direct"
 
 
 class LeadUpdate(BaseModel):
@@ -147,24 +220,63 @@ class LoginRequest(BaseModel):
 
 
 # ============================================================
-# Auth (Phase 3 will replace with JWT+bcrypt)
+# Auth (JWT + Bcrypt)
 # ============================================================
-ADMIN_EMAIL = "admin@aayat.com"
-ADMIN_PASSWORD = "aayat2026"
-ADMIN_TOKEN = "aayat-admin-mock-token"
 
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=15))
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
 
-def require_admin(x_admin_token: Optional[str] = Header(None)):
-    if x_admin_token != ADMIN_TOKEN:
+async def require_admin(authorization: Optional[str] = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    token = authorization.split(" ")[1]
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
+            raise HTTPException(status_code=401, detail="Invalid token")
+    except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Unauthorized")
     return True
 
-
 @api_router.post("/admin/login")
 async def admin_login(payload: LoginRequest):
-    if payload.email == ADMIN_EMAIL and payload.password == ADMIN_PASSWORD:
-        return {"token": ADMIN_TOKEN, "email": ADMIN_EMAIL}
-    raise HTTPException(status_code=401, detail="Invalid credentials")
+    admin = await db.admins.find_one({"email": payload.email})
+    if not admin or not pwd_context.verify(payload.password, admin["hashed_password"]):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": admin["email"]}, expires_delta=access_token_expires
+    )
+    return {"token": access_token, "email": admin["email"]}
+
+@app.on_event("startup")
+async def startup_db_client():
+    # Seed default admin if none exists
+    admin_count = await db.admins.count_documents({})
+    if admin_count == 0:
+        hashed = pwd_context.hash("aayat2026")
+        await db.admins.insert_one({
+            "id": str(uuid.uuid4()),
+            "email": "admin@aayat.com",
+            "hashed_password": hashed,
+            "created_at": now_iso()
+        })
+    # Seed default hero if none exists
+    hero_count = await db.hero_banners.count_documents({})
+    if hero_count == 0:
+        await db.hero_banners.insert_one(HeroBanner(
+            desktop_media="https://images.pexels.com/photos/5414582/pexels-photo-5414582.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=1200&w=1920",
+            mobile_media="https://images.pexels.com/photos/5414582/pexels-photo-5414582.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=1200&w=1920",
+            heading="Live Mumbai. Elevated.",
+            subheading="A curated portfolio of luxury apartments, penthouses and villas.",
+            is_default=True
+        ).model_dump())
 
 
 # ============================================================
@@ -195,25 +307,84 @@ async def get_property(property_id: str):
     doc = await db.properties.find_one({"id": property_id}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Property not found")
-    # Increment view counter (best-effort)
-    try:
-        await db.properties.update_one({"id": property_id}, {"$inc": {"views": 1}})
-    except Exception:
-        pass
     return doc
+
+@api_router.post("/properties/{property_id}/view")
+async def increment_property_view(property_id: str):
+    # Increment view counter securely
+    r = await db.properties.update_one({"id": property_id}, {"$inc": {"views": 1}})
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Property not found")
+    return {"status": "ok"}
 
 
 @api_router.post("/properties", response_model=Property, dependencies=[Depends(require_admin)])
 async def create_property(prop: Property):
+    # Auto-calculate price string and numeric based on advanced fields
     doc = prop.model_dump()
+    
+    # Helper to calculate numeric
+    def get_num(val, unit):
+        if not val: return 0
+        if unit == "Crore": return val * 10000000
+        if unit == "Lakh": return val * 100000
+        if unit == "Thousand": return val * 1000
+        return val
+        
+    def format_price(val, unit):
+        if not val: return ""
+        u = "Cr" if unit == "Crore" else "Lakh" if unit == "Lakh" else "K"
+        return f"₹{val} {u}"
+
+    if prop.price_type == "por":
+        doc["price"] = "Price On Request"
+        doc["price_numeric"] = 0
+    elif prop.price_type == "fixed":
+        doc["price"] = format_price(prop.min_price, prop.min_price_unit)
+        doc["price_numeric"] = get_num(prop.min_price, prop.min_price_unit)
+    elif prop.price_type == "range":
+        doc["price"] = f"{format_price(prop.min_price, prop.min_price_unit)} – {format_price(prop.max_price, prop.max_price_unit)}"
+        doc["price_numeric"] = get_num(prop.min_price, prop.min_price_unit)
+    elif prop.price_type == "starting_from":
+        doc["price"] = f"{format_price(prop.min_price, prop.min_price_unit)} onwards"
+        doc["price_numeric"] = get_num(prop.min_price, prop.min_price_unit)
+
     await db.properties.insert_one(doc)
-    return prop
+    return Property(**doc)
 
 
 @api_router.put("/properties/{property_id}", response_model=Property, dependencies=[Depends(require_admin)])
 async def update_property(property_id: str, prop: Property):
     doc = prop.model_dump()
     doc["id"] = property_id
+    
+    def get_num(val, unit):
+        if not val: return 0
+        if unit == "Crore": return val * 10000000
+        if unit == "Lakh": return val * 100000
+        if unit == "Thousand": return val * 1000
+        return val
+        
+    def format_price(val, unit):
+        if not val: return ""
+        # Handle int/float formatting (e.g. 2.5 vs 2)
+        val_str = f"{val:g}" 
+        u = "Cr" if unit == "Crore" else "Lakh" if unit == "Lakh" else "K"
+        return f"₹{val_str} {u}"
+
+    if prop.price_type == "por":
+        doc["price"] = "Price On Request"
+        doc["price_numeric"] = 0
+    elif prop.price_type == "fixed":
+        doc["price"] = format_price(prop.min_price, prop.min_price_unit)
+        doc["price_numeric"] = get_num(prop.min_price, prop.min_price_unit)
+    elif prop.price_type == "range":
+        doc["price"] = f"{format_price(prop.min_price, prop.min_price_unit)} – {format_price(prop.max_price, prop.max_price_unit)}"
+        doc["price_numeric"] = get_num(prop.min_price, prop.min_price_unit)
+    elif prop.price_type == "starting_from":
+        doc["price"] = f"{format_price(prop.min_price, prop.min_price_unit)} onwards"
+        doc["price_numeric"] = get_num(prop.min_price, prop.min_price_unit)
+
     await db.properties.update_one({"id": property_id}, {"$set": doc}, upsert=True)
     return Property(**doc)
 
@@ -223,13 +394,58 @@ async def delete_property(property_id: str):
     r = await db.properties.delete_one({"id": property_id})
     return {"deleted": r.deleted_count}
 
+@api_router.post("/properties/bulk", dependencies=[Depends(require_admin)])
+async def bulk_properties_action(req: BulkActionRequest):
+    action = req.action
+    ids = req.ids
+    if not ids:
+        return {"updated": 0}
+        
+    if action == "delete":
+        r = await db.properties.delete_many({"id": {"$in": ids}})
+        return {"modified": r.deleted_count}
+    elif action == "archive":
+        r = await db.properties.update_many({"id": {"$in": ids}}, {"$set": {"is_archived": True}})
+        return {"modified": r.modified_count}
+    elif action == "publish" or action == "unarchive":
+        r = await db.properties.update_many({"id": {"$in": ids}}, {"$set": {"is_archived": False}})
+        return {"modified": r.modified_count}
+    elif action == "feature":
+        r = await db.properties.update_many({"id": {"$in": ids}}, {"$set": {"featured": True}})
+        return {"modified": r.modified_count}
+    elif action == "unfeature":
+        r = await db.properties.update_many({"id": {"$in": ids}}, {"$set": {"featured": False}})
+        return {"modified": r.modified_count}
+    elif action == "duplicate":
+        # fetch, modify IDs, insert
+        docs = await db.properties.find({"id": {"$in": ids}}, {"_id": 0}).to_list(100)
+        new_docs = []
+        for d in docs:
+            d["id"] = str(uuid.uuid4())
+            d["name"] = f"{d.get('name', 'Property')} (Copy)"
+            d["is_archived"] = True # duplicates are archived/drafts by default
+            d["created_at"] = now_iso()
+            new_docs.append(d)
+        if new_docs:
+            await db.properties.insert_many(new_docs)
+        return {"modified": len(new_docs)}
+        
+    raise HTTPException(status_code=400, detail="Invalid bulk action")
+
 
 # ============================================================
 # Leads
 # ============================================================
 @api_router.post("/leads", response_model=Lead)
 async def create_lead(payload: LeadCreate):
-    lead = Lead(**payload.model_dump())
+    lead = Lead(
+        name=payload.name,
+        email=payload.email,
+        phone=payload.phone,
+        message=payload.message,
+        property_id=payload.property_id,
+        source=payload.source,
+    )
     await db.leads.insert_one(lead.model_dump())
     return lead
 
@@ -417,6 +633,36 @@ async def seed_db():
 async def root():
     return {"message": "Aayat Real Estate API", "version": "2.0.0"}
 
+
+# ============================================================
+# Hero Banners (Phase 4 CMS)
+# ============================================================
+@api_router.get("/hero", response_model=List[HeroBanner])
+async def list_heroes():
+    docs = await db.hero_banners.find({}, {"_id": 0}).sort("sort_order", 1).to_list(100)
+    return docs
+
+@api_router.post("/hero", response_model=HeroBanner, dependencies=[Depends(require_admin)])
+async def create_hero(hero: HeroBanner):
+    doc = hero.model_dump()
+    if doc.get("is_default"):
+        await db.hero_banners.update_many({}, {"$set": {"is_default": False}})
+    await db.hero_banners.insert_one(doc)
+    return HeroBanner(**doc)
+
+@api_router.put("/hero/{hero_id}", response_model=HeroBanner, dependencies=[Depends(require_admin)])
+async def update_hero(hero_id: str, hero: HeroBanner):
+    doc = hero.model_dump()
+    doc["id"] = hero_id
+    if doc.get("is_default"):
+        await db.hero_banners.update_many({"id": {"$ne": hero_id}}, {"$set": {"is_default": False}})
+    await db.hero_banners.update_one({"id": hero_id}, {"$set": doc}, upsert=True)
+    return HeroBanner(**doc)
+
+@api_router.delete("/hero/{hero_id}", dependencies=[Depends(require_admin)])
+async def delete_hero(hero_id: str):
+    r = await db.hero_banners.delete_one({"id": hero_id})
+    return {"deleted": r.deleted_count}
 
 app.include_router(api_router)
 

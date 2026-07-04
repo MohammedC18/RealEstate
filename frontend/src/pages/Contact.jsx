@@ -12,6 +12,7 @@ import { motion } from "framer-motion";
 import { MapPin, Phone, Mail, Clock, Instagram, Linkedin } from "lucide-react";
 import { createLead } from "../lib/api";
 import { waLink } from "../lib/utils";
+import SEOHead from "../lib/seo";
 
 const schema = z.object({
   full_name: z.string().min(2, "Please enter your name"),
@@ -35,11 +36,15 @@ export default function Contact() {
     resolver: zodResolver(schema),
   });
 
-  useEffect(() => { document.title = isVisit ? "Book Site Visit — Aayat" : "Contact — Aayat"; }, [isVisit]);
-
   const onSubmit = async (data) => {
     try {
-      await createLead({ ...data, source: isVisit ? "book_visit" : "contact" });
+      const extraMsg = [
+        data.location && `Location: ${data.location}`,
+        data.budget && `Budget: ${data.budget}`,
+        data.property_type && `Type: ${data.property_type}`,
+        data.message && `Message: ${data.message}`
+      ].filter(Boolean).join(" | ");
+      await createLead({ name: data.full_name, phone: data.phone, email: data.email, message: extraMsg, source: isVisit ? "Contact: Book Visit" : "Contact: Direct" });
       toast.success("Thank you. A senior advisor will reach you shortly.");
       reset();
     } catch { toast.error("Failed. Please try again."); }
@@ -47,6 +52,7 @@ export default function Contact() {
 
   return (
     <div className="pt-24 md:pt-28 bg-[#FAFAFA]">
+      <SEOHead title={isVisit ? "Book Site Visit — Aayat" : "Contact — Aayat"} description="Speak to a senior real estate advisor in Mumbai for luxury property consultation." />
       <section className="py-16 md:py-24 lg:py-28">
         <div className="max-w-[1400px] mx-auto px-6 md:px-10 grid md:grid-cols-12 gap-12">
           <div className="md:col-span-5">

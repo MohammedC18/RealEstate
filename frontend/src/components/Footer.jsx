@@ -12,7 +12,7 @@ export default function Footer() {
 
   const company = s?.company_name || "Aayat Real Estate";
   const tagline = s?.footer_tagline || "A curated portfolio of luxury residences across Mumbai's finest addresses.";
-  const note = s?.footer_note || `© ${new Date().getFullYear()} Aayat Real Estate. All rights reserved.`;
+  const note = s?.footer_note || `© ${new Date().getFullYear()} Aayat Real Estate • Designed by Mohammed Chunawala`;
 
   return (
     <footer data-testid="site-footer" className="bg-[#0A0A0A] text-white/80 pt-20 pb-10 relative overflow-hidden">
@@ -86,11 +86,15 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="hairline-dark mt-16 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
-          <p className="text-white/40 text-xs tracking-wider">{note}</p>
-          <p className="text-white/40 text-xs tracking-wider">
-            RERA Registered · Boutique Advisory · {company}
-          </p>
+        <div className="hairline-dark mt-16 pt-8 flex flex-col lg:flex-row items-center justify-between gap-6">
+          <p className="text-white/40 text-xs tracking-wider text-center lg:text-left">{note}</p>
+          <div className="text-white/40 text-[11px] tracking-widest uppercase flex flex-col sm:flex-row items-center gap-4">
+            <span>RERA Registered · Boutique Advisory</span>
+            <span className="hidden sm:inline opacity-30">|</span>
+            <a href="https://yourportfolio.com" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-[#C8A96A] flex items-center gap-1 group">
+              Designed & Developed by <span className="text-white/80 group-hover:text-[#C8A96A] font-medium transition-colors">Mohammed Chunawala</span>
+            </a>
+          </div>
         </div>
       </div>
     </footer>

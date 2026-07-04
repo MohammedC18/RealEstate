@@ -3,10 +3,12 @@
  */
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
+import SEOHead from "../lib/seo";
 
 export default function About() {
   return (
     <div className="pt-24 md:pt-28 bg-[#FAFAFA]">
+      <SEOHead title="About — Aayat Real Estate" description="Founded in 2013, Aayat is a boutique advisory serving Mumbai's most discerning families with a curated portfolio of luxury homes." />
       <section className="py-16 md:py-24 lg:py-28">
         <div className="max-w-[1400px] mx-auto px-6 md:px-10 grid md:grid-cols-12 gap-10">
           <div className="md:col-span-6">
