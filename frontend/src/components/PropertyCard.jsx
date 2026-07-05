@@ -23,13 +23,25 @@ export default function PropertyCard({ p, index = 0 }) {
       className="group bg-white border border-black/5 overflow-hidden hover:shadow-2xl hover:-translate-y-1 transition-all duration-500"
     >
       <Link to={`/properties/${p.id}`} className="block">
-        <div className="relative img-reveal aspect-[4/3] bg-black/5 overflow-hidden">
-          <img
-            src={p.images?.[0]}
-            alt={p.name}
-            loading="lazy"
-            className="w-full h-full object-cover"
-          />
+        <div className="relative img-reveal aspect-[4/3] bg-black/5 overflow-hidden group/gallery">
+          <div className="flex w-full h-full overflow-x-auto snap-x snap-mandatory hide-scrollbar">
+            {p.images?.length > 0 ? (
+              p.images.slice(0, 3).map((img, idx) => (
+                <div key={idx} className="w-full h-full flex-shrink-0 snap-center relative">
+                  <img src={img} alt={`${p.name} - ${idx}`} loading="lazy" className="w-full h-full object-cover" />
+                </div>
+              ))
+            ) : (
+              <div className="w-full h-full flex-shrink-0 bg-black/10 flex items-center justify-center text-xs text-black/40">No Image</div>
+            )}
+          </div>
+          {p.images?.length > 1 && (
+            <div className="absolute bottom-2 inset-x-0 flex justify-center gap-1.5 z-20 pointer-events-none md:opacity-0 group-hover/gallery:opacity-100 transition-opacity">
+              {p.images.slice(0, 3).map((_, i) => (
+                <div key={i} className="w-1.5 h-1.5 rounded-full bg-white/70 shadow-sm" />
+              ))}
+            </div>
+          )}
           <div className="absolute inset-x-0 top-0 flex items-start justify-between p-4 z-10">
             <div className="flex flex-wrap gap-2">
               {p.badges?.slice(0, 2).map((b) => (

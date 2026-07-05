@@ -95,49 +95,8 @@ export default function Navbar() {
               Book Visit
             </Link>
           </div>
-
-          <div className="md:hidden flex items-center gap-1">
-            <LiveSearch />
-            <DarkModeToggle />
-            <button
-              data-testid="nav-mobile-toggle"
-              className="text-white p-2"
-              onClick={() => setOpen((v) => !v)}
-              aria-label="Toggle menu"
-            >
-              {open ? <X strokeWidth={1.5} /> : <Menu strokeWidth={1.5} />}
-            </button>
-          </div>
         </div>
       </motion.header>
-
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            data-testid="mobile-menu"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-40 bg-[#0A0A0A] md:hidden pt-24 px-8"
-          >
-            <div className="flex flex-col gap-6">
-              {links.map((l, i) => (
-                <motion.div key={l.to}
-                  initial={{ x: -30, opacity: 0 }} animate={{ x: 0, opacity: 1 }}
-                  transition={{ delay: i * 0.07 }}>
-                  <NavLink to={l.to} className="font-serif-luxe text-4xl text-white hover:text-[#C8A96A] transition-colors">
-                    {l.label}
-                  </NavLink>
-                </motion.div>
-              ))}
-              <NavLink to="/favorites" className="font-serif-luxe text-4xl text-white hover:text-[#C8A96A] transition-colors flex items-center gap-3">
-                Favourites <Heart size={18} className="text-[#C8A96A]" />
-              </NavLink>
-              <Link to="/contact?visit=1" className="btn-gold mt-4 w-fit" data-testid="mobile-book-visit">
-                Book Site Visit
-              </Link>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </>
   );
 }

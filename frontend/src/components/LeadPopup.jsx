@@ -68,17 +68,17 @@ export default function LeadPopup() {
         <motion.div
           data-testid="lead-popup-overlay"
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4"
           onClick={() => setOpen(false)}
         >
           <motion.div
             data-testid="lead-popup"
-            initial={{ opacity: 0, y: 40, scale: 0.96 }}
+            initial={{ opacity: 0, y: 100, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 40, scale: 0.96 }}
+            exit={{ opacity: 0, y: 100, scale: 0.96 }}
             transition={{ duration: 0.5, ease: [0.2, 0.8, 0.2, 1] }}
             onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-2xl bg-[#FAFAFA] border border-black/5 shadow-2xl overflow-hidden"
+            className="relative w-full max-w-2xl bg-[#FAFAFA] border border-black/5 shadow-2xl overflow-hidden rounded-t-3xl sm:rounded-none max-h-[90vh] overflow-y-auto hide-scrollbar"
           >
             <button
               data-testid="lead-popup-close"

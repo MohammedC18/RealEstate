@@ -48,10 +48,10 @@ class Property(BaseModel):
     project_name: Optional[str] = None
     rera_number: Optional[str] = None
     tagline: Optional[str] = None
-    type: str  # apartment | villa | penthouse
+    type: Optional[str] = "apartment"  # apartment | villa | penthouse
     
     # Location
-    location: str
+    location: Optional[str] = "Mumbai"
     locality: Optional[str] = None
     landmark: Optional[str] = None
     pincode: Optional[str] = None
@@ -83,7 +83,7 @@ class Property(BaseModel):
     property_age: Optional[str] = None
     custom_specifications: List[Dict[str, str]] = []
     
-    status: str
+    status: Optional[str] = "available"
     collection: Optional[str] = None
     badges: List[str] = []
     images: List[str] = []
@@ -246,7 +246,7 @@ async def require_admin(authorization: Optional[str] = Header(None)):
 @api_router.post("/admin/login")
 async def admin_login(payload: LoginRequest):
     admin = await db.admins.find_one({"email": payload.email})
-    if not admin or not pwd_context.verify(payload.password, admin["hashed_password"]):
+    if not admin or not admin.get("hashed_password") or not pwd_context.verify(payload.password, admin["hashed_password"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -257,20 +257,28 @@ async def admin_login(payload: LoginRequest):
 
 @app.on_event("startup")
 async def startup_db_client():
-    # Seed default admin if none exists
+    # Seed default admin if none exists, or migrate old admin
     admin_count = await db.admins.count_documents({})
+    hashed = pwd_context.hash("aayat2026")
     if admin_count == 0:
-        hashed = pwd_context.hash("aayat2026")
         await db.admins.insert_one({
             "id": str(uuid.uuid4()),
             "email": "admin@aayat.com",
             "hashed_password": hashed,
             "created_at": now_iso()
         })
+    else:
+        # Check if existing admin needs migration
+        existing_admin = await db.admins.find_one({})
+        if not existing_admin.get("hashed_password"):
+            await db.admins.update_one(
+                {"_id": existing_admin["_id"]},
+                {"$set": {"hashed_password": hashed}}
+            )
     # Seed default hero if none exists
-    hero_count = await db.hero_banners.count_documents({})
+    hero_count = await db.hero.count_documents({})
     if hero_count == 0:
-        await db.hero_banners.insert_one(HeroBanner(
+        await db.hero.insert_one(HeroBanner(
             desktop_media="https://images.pexels.com/photos/5414582/pexels-photo-5414582.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=1200&w=1920",
             mobile_media="https://images.pexels.com/photos/5414582/pexels-photo-5414582.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=1200&w=1920",
             heading="Live Mumbai. Elevated.",
@@ -639,15 +647,15 @@ async def root():
 # ============================================================
 @api_router.get("/hero", response_model=List[HeroBanner])
 async def list_heroes():
-    docs = await db.hero_banners.find({}, {"_id": 0}).sort("sort_order", 1).to_list(100)
+    docs = await db.hero.find({}, {"_id": 0}).sort("sort_order", 1).to_list(100)
     return docs
 
 @api_router.post("/hero", response_model=HeroBanner, dependencies=[Depends(require_admin)])
 async def create_hero(hero: HeroBanner):
     doc = hero.model_dump()
     if doc.get("is_default"):
-        await db.hero_banners.update_many({}, {"$set": {"is_default": False}})
-    await db.hero_banners.insert_one(doc)
+        await db.hero.update_many({}, {"$set": {"is_default": False}})
+    await db.hero.insert_one(doc)
     return HeroBanner(**doc)
 
 @api_router.put("/hero/{hero_id}", response_model=HeroBanner, dependencies=[Depends(require_admin)])
@@ -655,13 +663,13 @@ async def update_hero(hero_id: str, hero: HeroBanner):
     doc = hero.model_dump()
     doc["id"] = hero_id
     if doc.get("is_default"):
-        await db.hero_banners.update_many({"id": {"$ne": hero_id}}, {"$set": {"is_default": False}})
-    await db.hero_banners.update_one({"id": hero_id}, {"$set": doc}, upsert=True)
+        await db.hero.update_many({"id": {"$ne": hero_id}}, {"$set": {"is_default": False}})
+    await db.hero.update_one({"id": hero_id}, {"$set": doc}, upsert=True)
     return HeroBanner(**doc)
 
 @api_router.delete("/hero/{hero_id}", dependencies=[Depends(require_admin)])
 async def delete_hero(hero_id: str):
-    r = await db.hero_banners.delete_one({"id": hero_id})
+    r = await db.hero.delete_one({"id": hero_id})
     return {"deleted": r.deleted_count}
 
 app.include_router(api_router)

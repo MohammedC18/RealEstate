@@ -5,6 +5,7 @@ import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import FloatingActions from "../components/FloatingActions";
 import LeadPopup from "../components/LeadPopup";
+import BottomNav from "../components/BottomNav";
 import { ScrollProgress, CompareBar } from "../components/EnhancedUI";
 import { useLocalArray } from "../components/EnhancedUI";
 import { useEffect, useState } from "react";
@@ -19,13 +20,14 @@ export default function MainLayout() {
   useEffect(() => { listProperties().then(setAllProps).catch(() => {}); }, []);
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#0A0A0A] text-charcoal dark:text-[#F5F1E9] transition-colors duration-500">
+    <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#0A0A0A] text-charcoal dark:text-[#F5F1E9] transition-colors duration-500 pb-16 md:pb-0">
       <ScrollProgress />
       <Navbar />
       <main><Outlet context={{ compare, allProps }} /></main>
       <Footer />
       <FloatingActions />
       <LeadPopup />
+      <BottomNav />
       <CompareBar compare={compare} properties={allProps} />
     </div>
   );
