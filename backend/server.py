@@ -7,6 +7,7 @@ from fastapi import FastAPI, APIRouter, HTTPException, Depends, Header
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
+import certifi
 import os
 import logging
 from pathlib import Path
@@ -30,8 +31,7 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(
     mongo_url,
     serverSelectionTimeoutMS=8000,
-    tls=True,
-    tlsAllowInvalidCertificates=True,
+    tlsCAFile=certifi.where(),
 )
 db = client[os.environ['DB_NAME']]
 
